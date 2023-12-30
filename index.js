@@ -114,14 +114,14 @@ function draw() {
       if(pipes[i].x+pipes[i].w < bird.x-bird.w/2 && pipes[i].canScore) {
         pipes[i].canScore = false;
         score = parseInt(score) + 1;
-        playSound("point.wav");
+        playSound("res/point.mp3");
         if(score % 10 === 0) {
           speed *= 1.1;
         }
       }
       if(doesHit(bird.hitbox,pipes[i].r1) || doesHit(bird.hitbox,pipes[i].r2)) {
-        playSound("hit.wav");
-        playSound("die.wav");
+        playSound("res/hit.mp3");
+        playSound("res/die.mp3");
         grav *= 2;
         speed = 0;
         bird.vel = 0;
@@ -244,7 +244,7 @@ function Bird(color) {
   }
   this.jump = function() {
     if(gameState === 'play') {
-      playSound("wing.wav");
+      playSound("res/wing.mp3");
       this.vel = -canvas.height/635*settings.baseJump;
     }
   }
@@ -328,14 +328,40 @@ function rotate(cx, cy, x, y, angle) {
   ny = (cos * (y - cy)) - (sin * (x - cx)) + cy;
   return {x:nx,y:ny};
 }
-function playSound(src) {
-  var snd = document.createElement("audio");
-  snd.src = 'res/' + src;
-  snd.autoplay = true;
-  document.body.appendChild(snd);
-  snd.onended = function() {
-    document.body.removeChild(snd);
-  }
+var aCtx;
+var soundCache = {};
+function playSound(file, volume = 1) {
+    if(!aCtx) {aCtx = new (window.AudioContext || window.webkitAudioContext)();}
+    if(!(file in soundCache)) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', file, true);
+        xhr.responseType = "arraybuffer";
+        xhr.onload = function() {
+            aCtx.decodeAudioData(xhr.response, function(buffer) {
+                soundCache[file] = buffer;
+                playSound(file, volume);
+            }, console.error);
+        }
+        xhr.onerror = console.error;
+        xhr.send();
+    }
+    else {
+        var gn = aCtx.createGain();
+        gn.gain.value = volume;
+        gn.connect(aCtx.destination);
+        var source = aCtx.createBufferSource();
+        source.buffer = soundCache[file];
+        source.volume = volume;
+        source.connect(gn);
+        if(!source.start) {source.start = source.noteOn;}
+        source.start();
+        source.onended = function() {
+            source.disconnect(gn);
+            gn.disconnect(aCtx.destination);
+            delete source;
+            delete gn;
+        }
+    }
 }
 function post(path, vars, callback, loader) {
   var xhr = new XMLHttpRequest();
